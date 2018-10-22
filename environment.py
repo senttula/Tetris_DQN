@@ -19,11 +19,11 @@ class Tetris(object):
         self.new_stone()
         self.score = Args.default_reward
         self.gameover = False
-        self.previous_actions = deque([3, 3, 3, 3, 3, 3], maxlen=6)
+        self.previous_actions = deque([3, 3, 3, 3, 3, 3, 3, 3], maxlen=8)
 
 
     def new_board(self):
-        self.board = np.zeros((Args.rows, Args.cols)) #To bool?
+        self.board = np.ones((Args.rows, Args.cols)) #To bool?
 
     def new_stone(self):
         if self.seed:
@@ -48,9 +48,8 @@ class Tetris(object):
         else:
             self.stone_x = int(Args.cols / 2 - len(self.stone[0]) / 2)
 
-        if np.any(self.board[2,:]): # check_collision()
+        if not np.all(self.board[2,:]): # check_collision()
             self.gameover = True
-
 
     def state(self):
         # appends the stone and returns board
@@ -58,7 +57,7 @@ class Tetris(object):
         for row in range(self.stone.shape[0]):
             for column in range(self.stone.shape[1]):
                 if self.stone[row, column]:
-                    board_state[row+self.stone_y, column+self.stone_x] = 1
+                    board_state[row+self.stone_y, column+self.stone_x] = 0
         return board_state
 
     def move(self, direction):
@@ -106,7 +105,7 @@ class Tetris(object):
             return True
         for row in range(self.stone.shape[0]):
             for column in range(self.stone.shape[1]):
-                if self.stone[row, column] and self.board[row+self.stone_y, column+self.stone_x]:
+                if not self.stone[row, column] and not self.board[row+self.stone_y, column+self.stone_x]:
                     return True
         return False
 
@@ -135,12 +134,12 @@ class Tetris(object):
             action += 1
 
         self.previous_actions.append(action)
-        if self.previous_actions.count(1)==3 and self.previous_actions.count(2)==3:
+        if self.previous_actions.count(1)==4 and self.previous_actions.count(2)==4:
             #oscillating
             self.gameover = True
 
-        if 0 == self.previous_actions[0] == self.previous_actions[1] == self.previous_actions[2]\
-                ==self.previous_actions[3] ==self.previous_actions[3]:
+        if all(item == 0 for item in self.previous_actions):
+            # only rotating
             self.gameover = True
 
         if action == 0:

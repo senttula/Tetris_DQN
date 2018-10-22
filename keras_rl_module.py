@@ -293,9 +293,9 @@ def show_sample_game(model, env, stone_set):
     for row in range(state.shape[0]):
         for column in range(state.shape[1]):
             if state[row, column]:
-                print("#", end="")
-            else:
                 print(".", end="")
+            else:
+                print("#", end="")
 
         if len(info_list)>row:
             print('    ', info_list[row])
