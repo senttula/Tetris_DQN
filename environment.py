@@ -6,6 +6,50 @@ from Args import Args
 from collections import deque
 
 
+class RingBuffer(object):
+    # keras rl/memory
+    def __init__(self, maxlen, init_value=None):
+        self.maxlen = maxlen
+        self.start = 0
+        self.length = 0
+        self.data = [init_value for _ in range(maxlen)]
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        """Return element of buffer at specific index
+
+        # Argument
+            idx (int): Index wanted
+
+        # Returns
+            The element of buffer at given index
+        """
+        if idx < 0 or idx >= self.length:
+            raise KeyError()
+        return self.data[(self.start + idx) % self.maxlen]
+
+    def count(self, i):
+        return self.data.count(i)
+
+    def append(self, v):
+        """Append an element to the buffer
+
+        # Argument
+            v (object): Element to append
+        """
+        if self.length < self.maxlen:
+            # We have space, simply increase the length.
+            self.length += 1
+        elif self.length == self.maxlen:
+            # No space, "remove" the first item.
+            self.start = (self.start + 1) % self.maxlen
+        else:
+            # This should never happen.
+            raise RuntimeError()
+        self.data[(self.start + self.length - 1) % self.maxlen] = v
+
 class Tetris(object):
     def __init__(self):
         self.random_rotation = True
@@ -19,17 +63,21 @@ class Tetris(object):
         self.new_stone()
         self.score = Args.default_reward
         self.gameover = False
-        self.previous_actions = deque([3, 3, 3, 3, 3, 3, 3, 3], maxlen=8)
+        #self.previous_actions = deque([3, 3, 3, 3, 3, 3, 3, 3], maxlen=8)
+        self.previous_actions = RingBuffer(8, init_value=3)
 
 
     def new_board(self):
-        self.board = np.ones((Args.rows, Args.cols)) #To bool?
+        self.board = np.ones((Args.rows, Args.cols), dtype=np.int16) #To bool?
 
     def new_stone(self):
         if self.seed:
             self.seed+=1
             random.seed(self.seed)
         self.stone = random.choice(self.stone_set)
+
+        self.stone = np.logical_not(self.stone).astype(np.int16)
+
         self.stone_x = 1
         self.stone_y = 0
 
@@ -56,7 +104,7 @@ class Tetris(object):
         board_state = np.copy(self.board)
         for row in range(self.stone.shape[0]):
             for column in range(self.stone.shape[1]):
-                if self.stone[row, column]:
+                if not self.stone[row, column]:
                     board_state[row+self.stone_y, column+self.stone_x] = 0
         return board_state
 
@@ -114,31 +162,33 @@ class Tetris(object):
         for row_number in range(self.stone.shape[0]):
             # loops the rows where the stone is placed
             row_number += self.stone_y
-            if np.all(self.board[row_number]):
+            if not np.any(self.board[row_number]):
                 rows_to_delete.append(row_number)
         cleared_rows = len(rows_to_delete)
         self.score = Args.linescores[cleared_rows]
         if cleared_rows > 0:
             #print('CLEARED ROWS!!!!!!!', cleared_rows)
             self.board = np.delete(self.board, rows_to_delete, axis=0)
-            self.board = np.concatenate((np.zeros((cleared_rows, Args.cols)), self.board), axis=0)
+            self.board = np.concatenate((np.ones((cleared_rows, Args.cols)), self.board), axis=0)
+
 
     def step(self, action):
         self.score = Args.default_reward
+        if not Args.enable_rotate:
+            action += 1
         #if action == 0: print("rotate")
         #elif action == 1: print("left")
         #elif action == 2: print("rigth")
         #else: print("drop")
 
-        if not Args.enable_rotate:
-            action += 1
+
 
         self.previous_actions.append(action)
         if self.previous_actions.count(1)==4 and self.previous_actions.count(2)==4:
             #oscillating
             self.gameover = True
 
-        if all(item == 0 for item in self.previous_actions):
+        if self.previous_actions.count(0)==8:
             # only rotating
             self.gameover = True
 
@@ -168,8 +218,8 @@ class tetris_simulation(object):
         self.step_count = 0
         self.cleared_row_count = 0
 
-        self.random_rotation_prob = .5
-        self.random_position_prob = .5
+        self.random_rotation_prob = 1
+        self.random_position_prob = 1
         self.stone_sets = [Args.stone_shapes3]
 
     def reset(self, seed_start = False):
@@ -181,13 +231,17 @@ class tetris_simulation(object):
             self.tetris.random_rotation = True
         self.tetris.stone_set = random.choice(self.stone_sets)
         self.tetris.init_game(seed_start)
-        state = self.tetris.state()[:, :, np.newaxis]
+        state = self.get_state()
         self.step_count = 0
         return state
 
+    def get_state(self):
+        st = self.tetris.state()[:, :, np.newaxis]
+        return st  # +np.random.normal(0, 0.05, st.shape)
+
     def step(self, action):
         reward = self.tetris.step(action)
-        state = self.tetris.state()[:, :, np.newaxis]
+        state = self.get_state()
         gameover = self.tetris.gameover
         self.step_count += 1
         if self.step_count > Args.max_steps:
@@ -210,16 +264,18 @@ class tetris_simulation(object):
 
 if __name__ == "__main__":
     tr = tetris_simulation()
+
+    #utils.show_board(s)
+    tr.random_rotation_prob=0
+    tr.random_position_prob = 0
     s = tr.reset()
-    utils.show_board(s)
 
     test_actions = [
-        2,2,2,2,2,2,2,2
+        1,1,1,1,3,1,1,3,2,2,2,2,3,2,2,3,3
     ]
 
     for action in test_actions:
         s, reward, done, _ = tr.step(action)
         tr.render()
-        print(reward)
         if done:
             break

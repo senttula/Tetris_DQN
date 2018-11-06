@@ -6,34 +6,26 @@ class Args:
     ##################################################################################
     # Environment rewards
     default_reward = -0.01
-    rotation_reward = -0.01
+    rotation_reward = -0.5
     reward_for_losing = -1
-    linescores = [0.01, 1, 3, 9, 27]  # first score is for dropped piece that doesn't clear any rows
+    linescores = [0.1, 1, 3, 9, 27]  # first score is for dropped piece that doesn't clear any rows
     reward_for_unnecessary_move = -1 # move that doesn't change state
     end_game_on_unnecessary = True
-
-    #default_reward = -0
-    #rotation_reward = default_reward
-    #reward_for_losing = -1
-    #linescores = [default_reward, 1, 3, 9, 27]  # first score is for dropped piece that doesn't clear any rows
-    #reward_for_unnecessary_move = 0  # move that doesn't change state
-    #reward_for_unnecessary_loop = 0  # 4 rotates in a row
-    #end_game_on_unnecessary = True
-
-    max_steps = 100
-
-    #reward_stadard_deviation = 0.1
 
     ##################################################################################
     # Learning parameters
 
-    replay_batch = 64
+    replay_batch = 1024*8
     memory_size = replay_batch*4
+    gamma = 0.99
+
     epochs = 2
+    max_steps = 100
+
+    learning_rate=0.0005
 
     load_file = None
-    load_file = 'dqn_weights3.h5f' #r'C:\Users\tka\Anaconda3\dqn_weights3.h5f'
-    save_file = 'dqn_weights3.h5f'
+    save_file = 'weights.h5f'
 
     ##################################################################################
     # Tetris environment

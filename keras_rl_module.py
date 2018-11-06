@@ -1,31 +1,18 @@
 import numpy as np
 import environment
 from Args import Args
-import utils
-
-from keras.callbacks import Callback
-from keras.models import Sequential, Model
-from keras.layers import Dense, Activation, Flatten, Input, Reshape, \
-    GaussianNoise, Dropout, MaxPooling2D,Lambda, LocallyConnected2D
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Flatten, Reshape,BatchNormalization
 from keras.optimizers import Adam
 from keras import regularizers
-from keras.layers.convolutional import Conv2D, UpSampling2D, AveragePooling2D
-from keras import backend as K
 from collections import deque
 
 from rl.agents.dqn import DQNAgent
-from rl.policy import BoltzmannQPolicy, EpsGreedyQPolicy
+from rl.policy import BoltzmannQPolicy
 from rl.memory import SequentialMemory
 import time
-import random
 from keras import backend as K
 
-
-#def l0_reg(weight_matrix=None):
-#    #if weight_matrix:
-#        return K.sum(0.1 * K.sqrt(weight_matrix))
-#    #else:
-#    #    print("#")
 
 
 class lhalf_reg(regularizers.Regularizer):
@@ -46,48 +33,35 @@ def make_model():
 
     model.add(Reshape((Args.rows, Args.cols, 1), input_shape=(1, Args.rows, Args.cols, 1)))
 
-    model.add(Lambda(lambda x: 2 * x - 1.))
-
-    #model.add(Conv2D(8, (3, 3), use_bias=False, strides=(1, 1), padding='same',
-    #                 kernel_regularizer=lhalf_reg(10 ** -5),
-    #                 activation='relu'
-    #                 ))
-#
-    #model.add(Conv2D(8, (3, 3), use_bias=False, strides=(1, 1), padding='same',
-    #                 kernel_regularizer=lhalf_reg(10 ** -5),
-    #                 activation='relu'
-    #                 ))
-#
-    #model.add(Conv2D(8, (3, 3), use_bias=False, strides=(1, 1), padding='same',
-    #                 kernel_regularizer=lhalf_reg(10 ** -5),
-    #                 activation='relu'
-    #                 ))
-#
-    #model.add(Conv2D(8, (3, 3), use_bias=True, strides=(1, 1), padding='same',
-    #                 kernel_regularizer=lhalf_reg(10 ** -5),
-    #                 bias_regularizer=lhalf_reg(10 ** -5),
-    #                 activation='relu'
-    #                 ))
-
-
-
-    model.add(Conv2D(16, (7, 7), use_bias=True, strides=(2, 2), padding='same',
-                     kernel_regularizer=regularizers.l1(10 ** -5),
-                     bias_regularizer=regularizers.l1(10 ** -5),
-                     activation='relu'
-                     ))
-
-
     model.add(Flatten())
 
-    model.add(Dense(32, activation='relu', use_bias=True,
-                    kernel_regularizer=regularizers.l1(10 ** -5),
-                    bias_regularizer=regularizers.l1(10 ** -5),
+    model.add(Dense(64, activation='relu', use_bias=True,
+                    kernel_regularizer=regularizers.l1(10 ** -6),
+                    bias_regularizer=regularizers.l1(10 ** -6),
                     ))
 
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+
+    model.add(Dense(64, activation='relu', use_bias=True,
+                    kernel_regularizer=regularizers.l1(10 ** -6),
+                    bias_regularizer=regularizers.l1(10 ** -6),
+                    ))
+
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+
+    model.add(Dense(64, activation='relu', use_bias=True,
+                    kernel_regularizer=regularizers.l1(10 ** -6),
+                    bias_regularizer=regularizers.l1(10 ** -6),
+                    ))
+
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+
     model.add(Dense(Args.actions, name='to_actions', use_bias=True,
-                    kernel_regularizer=regularizers.l1(10 ** -5),
-                    bias_regularizer=regularizers.l1(10 ** -4),
+                    kernel_regularizer=regularizers.l1(10 ** -6),
+                    bias_regularizer=regularizers.l1(10 ** -5),
                     ))
 
     model.summary()
@@ -101,16 +75,15 @@ class main():
         self.env = environment.tetris_simulation()
 
         self.model = make_model()
-        memory = SequentialMemory(limit=100000, window_length=1)
+        memory = SequentialMemory(limit=50000, window_length=1)
         # policy = EpsGreedyQPolicy(.15)
         policy = BoltzmannQPolicy()
         self.dqn = DQNAgent(model=self.model, nb_actions=Args.actions, memory=memory, nb_steps_warmup=5000,
                             target_model_update=10000, policy=policy, batch_size=64
-                            , enable_double_dqn=False, enable_dueling_network=False,
+                            , enable_double_dqn=False, enable_dueling_network=True,
                             custom_model_objects={'lhalf_reg': lhalf_reg}
                             )
-        self.dqn.compile(Adam(lr=0.001))
-
+        self.dqn.compile(Adam(lr=0.0002))
 
     def do(self):
 
@@ -120,10 +93,6 @@ class main():
             except:
                 print("NOT LOADED")
 
-
-        #self.dqn.model.load_weights('dqn_weights2.h5f', by_name=True)
-        #self.dqn.update_target_model_hard()
-
         print('pre evaluation:')
         if self.evaluate(stone_sets=[Args.stone_shapes1, Args.stone_shapes2, Args.stone_shapes3], min_reward=99, episodes=50):
             print('pre evaluation passed, training might not be needed')
@@ -131,13 +100,6 @@ class main():
             print('starting training')
 
         self.env.stone_sets = [Args.stone_shapes1]
-
-        show_sample_game(self.model, self.env, Args.stone_shapes1)
-
-        #mins = 2000
-        #self.dqn.fit(self.env, nb_steps=10000*mins, visualize=False, verbose=1, log_interval=50000)
-
-        #self.dqn.save_weights('pitk.h5f', overwrite=True)
 
         stones = [Args.stone_shapes1, Args.stone_shapes2, Args.stone_shapes3]
         for i in range(1000):
@@ -189,7 +151,7 @@ class main():
         else:
             return False
 
-    def train_set(self, stone_sets, rotation_prob = .5, position_prob = .5, nb_steps = 30000):
+    def train_set(self, stone_sets, rotation_prob = .5, position_prob = .5, nb_steps = 50000):
         t = time.time()
 
         self.env.random_rotation_prob = rotation_prob
@@ -197,22 +159,17 @@ class main():
         self.env.stone_sets = stone_sets
     
         self.env.cleared_row_count = 0
-        self.dqn.fit(self.env, nb_steps=nb_steps, visualize=False, verbose=1)
+        self.dqn.fit(self.env, nb_steps=nb_steps, visualize=False, verbose=1, log_interval=10000)
 
-        #for layer in self.model.layers:
-        #   wg = layer.get_weights()
-        #print("last layer bias: ", wg[1])
-        print("---------- cleared rows: %d, time %.1f ----------" % (self.env.cleared_row_count, time.time() - t))
+        print("---------- cleared rows in training: %d, time %.1f ----------" % (self.env.cleared_row_count, time.time() - t))
         if Args.save_file:
             self.dqn.save_weights(Args.save_file, overwrite=True)
 
     def train_until_passes_evaluation(self, stone_sets, min_reward=0):
-        # probablity_change = [maximum of i, rotation prob divider, position prob divider
-
         for i in range(0, 20):
-
-            evaluate_actions(self.model, self.env, stone_sets[0])
             if i % 1 == 0:
+                print("memory size: %d, memory avg reward %.3f" %
+                      (len(self.dqn.memory.rewards),self.dqn.memory.rewards.get_average()))
                 show_sample_game(self.model, self.env, stone_sets[0])
                 weigths_print(self.model, bias=True)
 
@@ -225,6 +182,9 @@ class main():
         print('somethings wrong, back to previous train set')
         return False
 
+
+def predict_qval(model, state):
+    return model.predict(state[np.newaxis, np.newaxis, :,:,:])[0]
 
 def calculate_possible_reward(stone_set):
     total_count_of_squares = 0
@@ -257,7 +217,7 @@ def evaluate_actions(model, env, stone_set):
     actions= deque([], maxlen=10)
     for i in range(Args.max_steps):
         #utils.show_board(state)
-        qval = model.predict(state[np.newaxis,np.newaxis,:,:,:])
+        qval = predict_qval(model, state)
         action = np.argmax(qval)
         state = env.step(action)[0]
         actions.append(action)
@@ -273,7 +233,7 @@ def show_sample_game(model, env, stone_set):
     total_reward=0
     qval_list = []
     for i in range(Args.max_steps):
-        qval = model.predict(state[np.newaxis, np.newaxis, :, :, :])
+        qval = predict_qval(model, state)
         action = np.argmax(qval)
         state, reward, game_over, _ = env.step(action)
         actions.append(action)
@@ -292,7 +252,7 @@ def show_sample_game(model, env, stone_set):
     info_list += ['    made actions above']
     for row in range(state.shape[0]):
         for column in range(state.shape[1]):
-            if state[row, column]:
+            if state[row, column] > 0.5:
                 print(".", end="")
             else:
                 print("#", end="")
